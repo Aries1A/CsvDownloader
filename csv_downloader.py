@@ -6,6 +6,9 @@ import csv
 import re
 import urllib.error
 import urllib.request
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
 
 """
 CSVに記載されている画像URLを取得し、ディレクトリに保存するプログラム。
@@ -84,6 +87,7 @@ def read_csv(csv_file_path, output_directory_path, ignore_lines):
     last_dir = middle_dir
     current_line = 1
 
+    drive = drive_oath()
 
     # 以下整理したい. 階層に対して深さ優先探索にする
     with csv_file.open(encoding='utf8') as csv_file:
@@ -106,9 +110,13 @@ def read_csv(csv_file_path, output_directory_path, ignore_lines):
                         if 'http' in each_comp:
                             url_splits = each_comp.split('/')
                             img_id = get_url_id(url_splits)
-                            img_url = get_google_download_link(img_id)
-                            file_downloader(img_url, str(last_dir))
-                            
+                            try:
+                                save_img(img_id,last_dir,drive)
+                            except:
+                                print("{} not found (maybe private file or directry)".format(img_id))
+                                with open("{}/not_saved.text".format(last_dir), 'w') as f:
+                                    f.write(img_id)
+                                    
             current_line += 1
 
 def file_downloader(url, path):
@@ -142,10 +150,21 @@ def contains(obj, objs):
             return True
     return False
 
+# driveの画像を保存
+def save_img(file_id,last_dir,drive):
+    f = drive.CreateFile({'id': file_id})
+    if not os.path.exists('{}/{}'.format(last_dir,f['title'])):
+        f.GetContentFile('{}/{}'.format(last_dir,f['title']))
+        print("saved {}/{}".format(last_dir,f['title']))
+
+#認証
+def drive_oath():
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()
+    drive = GoogleDrive(gauth)
+    return drive
+
 def main():
-
-    # file_downloader('https://drive.google.com/uc?id=1MHqqGKUB30mKMMXqWqhNrNNsWBPZIBJM', 'tmp')
-
     (csv_file_path, output_directory_path, ignore_lines) = get_params()
     
     read_csv(csv_file_path, output_directory_path, ignore_lines)
